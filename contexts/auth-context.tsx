@@ -14,6 +14,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   logout: () => void;
+  login: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,6 +50,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkAuth();
+    // sync auth state across tabs
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'currentUser' || e.key === 'isAuthenticated') {
+        checkAuth();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', onStorage);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorage);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -70,8 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/');
   };
 
+  const login = (u: User) => {
+    try {
+      localStorage.setItem('currentUser', JSON.stringify(u));
+      localStorage.setItem('isAuthenticated', 'true');
+      setUser(u);
+      setIsAuthenticated(true);
+    } catch (err) {
+      console.error('[v0] login error:', err);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, logout, login }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import type { FormEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Lock, User } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function SignUp() {
   const [name, setName] = useState('');
@@ -15,8 +17,9 @@ export default function SignUp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { login } = useAuth();
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
@@ -34,28 +37,27 @@ export default function SignUp() {
 
     try {
       const users = JSON.parse(localStorage.getItem('users') || '[]');
-      
-      const userExists = users.some((u: any) => u.email === email);
+
+      const userExists = users.some((u: any) => u.email === email.trim().toLowerCase());
       if (userExists) {
         setError('An account with this email already exists. Please sign in instead.');
         setLoading(false);
         return;
       }
 
-      const newUser = { 
-        id: Date.now().toString(), 
-        name, 
-        email, 
-        password 
+      const newUser = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
       };
       users.push(newUser);
-      
       localStorage.setItem('users', JSON.stringify(users));
-      
-      localStorage.setItem('currentUser', JSON.stringify({ email: newUser.email, name: newUser.name, id: newUser.id }));
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      console.log("[v0] New user registered:", newUser.email);
+
+      // update auth context and localStorage via login
+      login({ id: newUser.id, name: newUser.name, email: newUser.email });
+
+      console.log('[v0] New user registered:', newUser.email);
       router.push('/tools');
     } catch (err) {
       setError('Failed to create account. Please try again.');
@@ -97,7 +99,7 @@ export default function SignUp() {
                   type="text"
                   placeholder="John Doe"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -112,7 +114,7 @@ export default function SignUp() {
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -127,7 +129,7 @@ export default function SignUp() {
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -142,7 +144,7 @@ export default function SignUp() {
                   type="password"
                   placeholder="••••••••"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />

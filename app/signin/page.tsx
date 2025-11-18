@@ -1,6 +1,8 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
+import type { FormEvent, ChangeEvent } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -13,22 +15,24 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { login } = useAuth();
 
   useEffect(() => {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     console.log("[v0] Users in localStorage:", users);
   }, []);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
       const users = JSON.parse(localStorage.getItem('users') || '[]');
-      console.log("[v0] Attempting signin with email:", email);
-      
-      const user = users.find((u: any) => u.email === email && u.password === password);
+      console.log('[v0] Attempting signin with email:', email);
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = users.find((u: any) => u.email === normalizedEmail && u.password === password);
       
       if (!user) {
         setError('Invalid email or password. Please try again or sign up for a new account.');
@@ -36,9 +40,8 @@ export default function SignIn() {
         return;
       }
 
-      localStorage.setItem('currentUser', JSON.stringify({ email: user.email, name: user.name, id: user.id }));
-      localStorage.setItem('isAuthenticated', 'true');
-      
+      // update context and localStorage
+      login({ id: user.id, email: user.email, name: user.name });
       router.push('/tools');
     } catch (err) {
       setError('Failed to sign in. Please try again.');
@@ -80,7 +83,7 @@ export default function SignIn() {
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -95,7 +98,7 @@ export default function SignIn() {
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
