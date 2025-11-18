@@ -14,10 +14,15 @@ export default function Home() {
           <div className="text-2xl font-bold text-primary">SEO Analyzer</div>
           <div className="hidden md:flex gap-8">
             <Link href="#features" className="text-foreground hover:text-primary transition">Tools</Link>
-            <Link href="#" className="text-foreground hover:text-primary transition">Pricing</Link>
-            <Link href="#" className="text-foreground hover:text-primary transition">Docs</Link>
           </div>
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90">Get Started</Button>
+          <div className="flex gap-4">
+            <Link href="/signin">
+              <Button variant="outline" className="border-border hover:border-primary">Sign In</Button>
+            </Link>
+            <Link href="/signup">
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">Sign Up</Button>
+            </Link>
+          </div>
         </div>
       </nav>
 

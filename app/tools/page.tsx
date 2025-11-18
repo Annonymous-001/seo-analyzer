@@ -1,23 +1,45 @@
 'use client';
 
 import Link from 'next/link';
-import { TrendingUp, Search, MapPin, ArrowLeft } from 'lucide-react';
+import { TrendingUp, Search, MapPin, ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function ToolsPage() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </Button>
+            </Link>
+            <div className="text-2xl font-bold text-primary">SEO Tools</div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {user && (
+              <div className="text-sm text-muted-foreground">
+                Welcome, <span className="font-semibold text-foreground">{user.name}</span>
+              </div>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={logout}
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
             </Button>
-          </Link>
-          <div className="text-2xl font-bold text-primary">SEO Tools</div>
+          </div>
         </div>
       </nav>
 
