@@ -2,40 +2,53 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Globe, Users, TrendingUp, Calendar, Link2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Globe, Link2, Image, FileText, Search, AlertCircle, Clock, CheckCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
+import { Badge } from '@/components/ui/badge';
 
-interface TrafficData {
+interface CrawlData {
+  url: string;
   domain: string;
-  indexedPages: number;
-  backlinks: number;
-  domainAgeYears: number;
-  estimatedTraffic: number;
-  whois: {
-    creationDate: string | null;
-    registrar: string | null;
+  statusCode: number;
+  loadTime: number;
+  title: string | null;
+  meta: {
+    description: string | null;
+    keywords: string | null;
+    og: {
+      title: string | null;
+      description: string | null;
+      image: string | null;
+      url: string | null;
+    };
   };
+  links: {
+    total: number;
+    internal: number;
+    external: number;
+    internalLinks: string[];
+    externalLinks: string[];
+  };
+  images: {
+    total: number;
+    images: Array<{ src: string; alt: string }>;
+  };
+  headings: {
+    h1: string[];
+    h2: string[];
+    h3: string[];
+  };
+  textPreview: string;
+  robotsTxt: string | null;
+  sitemapUrl: string | null;
 }
 
-const normalizeTrafficData = (data: any, fallbackDomain: string): TrafficData => ({
-  domain: typeof data?.domain === 'string' && data.domain.trim().length > 0 ? data.domain : fallbackDomain,
-  indexedPages: Number.isFinite(Number(data?.indexedPages)) ? Number(data.indexedPages) : 0,
-  backlinks: Number.isFinite(Number(data?.backlinks)) ? Number(data.backlinks) : 0,
-  domainAgeYears: Number.isFinite(Number(data?.domainAgeYears)) ? Number(data.domainAgeYears) : 0,
-  estimatedTraffic: Number.isFinite(Number(data?.estimatedTraffic)) ? Number(data.estimatedTraffic) : 0,
-  whois: {
-    creationDate: data?.whois?.creationDate ?? null,
-    registrar: data?.whois?.registrar ?? null,
-  },
-});
-
-function TrafficAnalysisContent() {
-  const [domain, setDomain] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [results, setResults] = useState<TrafficData | null>(null);
+function WebCrawlerContent() {
+  const [url, setUrl] = useState('');
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [results, setResults] = useState<CrawlData | null>(null);
   const [error, setError] = useState('');
 
   const interpretApiError = (status: number, message?: string) => {
@@ -44,92 +57,73 @@ function TrafficAnalysisContent() {
     }
 
     if (status >= 500) {
-      return "Traffic analysis API is unavailable right now. Please reload and try again shortly.";
+      return "Web crawler API is unavailable right now. Please reload and try again shortly.";
     }
 
     if (status === 404) {
-      return message || "Domain data not found.";
+      return message || "Domain does not exist or has no DNS records.";
     }
 
-    return message || "Unexpected error from the traffic analyzer. Please try again.";
+    if (status === 408) {
+      return "Request timeout. The website took too long to respond.";
+    }
+
+    if (status === 503) {
+      return "Cannot connect to the website. It may be down or unreachable.";
+    }
+
+    return message || "Unexpected error from the web crawler. Please try again.";
   };
 
-  const handleAnalyze = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCrawl = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!domain) return;
+    if (!url) return;
     
-    setIsAnalyzing(true);
+    setIsCrawling(true);
     setError('');
     setResults(null);
     
     try {
-      const response = await fetch(`/api/traffic-analysis?domain=${encodeURIComponent(domain)}`);
-
+      const response = await fetch(`/api/traffic-analysis?url=${encodeURIComponent(url)}`);
       const data = await response.json();
 
       if (!response.ok) {
         const friendlyMessage = interpretApiError(response.status, data.error);
-        if (response.status === 404) {
-          setResults(normalizeTrafficData(data, domain));
-          setError(friendlyMessage);
-        } else {
-          throw new Error(friendlyMessage);
-        }
-      } else {
-        setResults(normalizeTrafficData(data, domain));
+        throw new Error(friendlyMessage);
       }
+
+      setResults(data);
     } catch (err: any) {
-      console.error('Error analyzing domain:', err);
-      setError(err?.message || 'Traffic analyzer is unreachable. Please reload and try again.');
+      console.error('Error crawling website:', err);
+      setError(err?.message || 'Web crawler is unreachable. Please reload and try again.');
     } finally {
-      setIsAnalyzing(false);
+      setIsCrawling(false);
     }
   };
-
-  // Chart data
-  const metricsData = results ? [
-    { name: 'Indexed Pages', value: results.indexedPages, color: '#3b82f6' },
-    { name: 'Backlinks', value: results.backlinks, color: '#10b981' },
-    { name: 'Est. Traffic', value: results.estimatedTraffic, color: '#f59e0b' },
-  ] : [];
-
-  const trafficBreakdown = results ? [
-    { name: 'Indexed Pages', value: results.indexedPages, fill: '#3b82f6' },
-    { name: 'Backlinks', value: results.backlinks, fill: '#10b981' },
-  ] : [];
-
-  const trafficOverTime = results ? [
-    { month: '3M ago', traffic: Math.round(results.estimatedTraffic * 0.7) },
-    { month: '2M ago', traffic: Math.round(results.estimatedTraffic * 0.85) },
-    { month: '1M ago', traffic: Math.round(results.estimatedTraffic * 0.95) },
-    { month: 'Current', traffic: results.estimatedTraffic },
-  ] : [];
-
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Input Section */}
       <Card className="border border-border mb-8">
         <CardHeader>
-          <CardTitle className="text-foreground">Website Traffic Analysis</CardTitle>
-          <CardDescription>Analyze domain metrics including indexed pages, backlinks, domain age, and estimated traffic</CardDescription>
+          <CardTitle className="text-foreground">Web Crawler</CardTitle>
+          <CardDescription>Crawl websites and extract links, images, meta tags, and SEO information</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAnalyze} className="space-y-4">
+          <form onSubmit={handleCrawl} className="space-y-4">
             <div className="flex gap-4">
               <Input
-                placeholder="Enter domain (e.g. google.com)"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
+                placeholder="Enter URL (e.g., https://example.com or example.com)"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
                 className="bg-input text-foreground border-border"
               />
               <Button 
                 type="submit" 
-                disabled={isAnalyzing}
+                disabled={isCrawling}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {isAnalyzing ? 'Analyzing...' : 'Analyze'}
+                {isCrawling ? 'Crawling...' : 'Crawl'}
               </Button>
             </div>
             {error && (
@@ -142,25 +136,43 @@ function TrafficAnalysisContent() {
         </CardContent>
       </Card>
 
-      {isAnalyzing && (
+      {isCrawling && (
         <Card className="border border-border">
           <CardContent className="py-16 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Analyzing domain data...</p>
+            <p className="text-muted-foreground">Crawling website...</p>
           </CardContent>
         </Card>
       )}
 
       {results && (
         <div className="space-y-6">
-          {/* Domain Header */}
+          {/* Website Header */}
           <Card className="border border-border">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <Globe className="w-6 h-6 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground uppercase">Domain</p>
-                  <p className="text-2xl font-bold text-foreground">{results.domain}</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Globe className="w-6 h-6 text-primary" />
+                  <div>
+                    <p className="text-sm text-muted-foreground uppercase">Website</p>
+                    <p className="text-xl font-bold text-foreground break-all">{results.url}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{results.domain}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant={results.statusCode === 200 ? "default" : "destructive"}>
+                      {results.statusCode}
+                    </Badge>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Load Time</p>
+                    <div className="flex items-center gap-1 text-sm font-semibold">
+                      <Clock className="w-4 h-4" />
+                      {results.loadTime}ms
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -172,15 +184,13 @@ function TrafficAnalysisContent() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase">Estimated Traffic</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {results.estimatedTraffic >= 1000 
-                        ? `${(results.estimatedTraffic / 1000).toFixed(1)}K`
-                        : results.estimatedTraffic.toLocaleString()}
+                    <p className="text-xs text-muted-foreground uppercase">Total Links</p>
+                    <p className="text-2xl font-bold text-foreground">{results.links.total.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {results.links.internal} internal, {results.links.external} external
                     </p>
-                    <p className="text-xs text-muted-foreground">Monthly visitors</p>
                   </div>
-                  <Users className="w-8 h-8 text-primary opacity-50" />
+                  <Link2 className="w-8 h-8 text-primary opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -189,15 +199,11 @@ function TrafficAnalysisContent() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase">Indexed Pages</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {results.indexedPages >= 1000 
-                        ? `${(results.indexedPages / 1000).toFixed(1)}K`
-                        : results.indexedPages.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Google indexed</p>
+                    <p className="text-xs text-muted-foreground uppercase">Images</p>
+                    <p className="text-2xl font-bold text-foreground">{results.images.total.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Found on page</p>
                   </div>
-                  <Link2 className="w-8 h-8 text-accent opacity-50" />
+                  <Image className="w-8 h-8 text-accent opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -206,15 +212,13 @@ function TrafficAnalysisContent() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase">Backlinks</p>
+                    <p className="text-xs text-muted-foreground uppercase">Headings</p>
                     <p className="text-2xl font-bold text-foreground">
-                      {results.backlinks >= 1000 
-                        ? `${(results.backlinks / 1000).toFixed(1)}K`
-                        : results.backlinks.toLocaleString()}
+                      {results.headings.h1.length + results.headings.h2.length + results.headings.h3.length}
                     </p>
-                    <p className="text-xs text-muted-foreground">Estimated links</p>
+                    <p className="text-xs text-muted-foreground">H1-H3 tags</p>
                   </div>
-                  <TrendingUp className="w-8 h-8 text-primary opacity-50" />
+                  <FileText className="w-8 h-8 text-primary opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -223,172 +227,252 @@ function TrafficAnalysisContent() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase">Domain Age</p>
-                    <p className="text-2xl font-bold text-foreground">{results.domainAgeYears.toFixed(1)}</p>
-                    <p className="text-xs text-muted-foreground">Years old</p>
+                    <p className="text-xs text-muted-foreground uppercase">SEO Files</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {results.robotsTxt && (
+                        <Badge variant="outline" className="text-xs">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          robots.txt
+                        </Badge>
+                      )}
+                      {results.sitemapUrl && (
+                        <Badge variant="outline" className="text-xs">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          sitemap
+                        </Badge>
+                      )}
+                      {!results.robotsTxt && !results.sitemapUrl && (
+                        <span className="text-xs text-muted-foreground">None found</span>
+                      )}
+                    </div>
                   </div>
-                  <Calendar className="w-8 h-8 text-accent opacity-50" />
+                  <Search className="w-8 h-8 text-accent opacity-50" />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Charts Section */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Metrics Bar Chart */}
-            <Card className="border border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Key Metrics</CardTitle>
-                <CardDescription>Indexed pages, backlinks, and estimated traffic</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={metricsData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                      formatter={(value: number) => value.toLocaleString()}
-                    />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                      {metricsData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Traffic Over Time */}
-            <Card className="border border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Traffic Trend</CardTitle>
-                <CardDescription>Estimated monthly traffic over time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={trafficOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                      formatter={(value: number) => value.toLocaleString()}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="traffic" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      dot={{ fill: '#3b82f6', r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Pie Chart */}
+          {/* Page Title & Meta */}
           <Card className="border border-border">
             <CardHeader>
-              <CardTitle className="text-foreground">SEO Metrics Breakdown</CardTitle>
-              <CardDescription>Distribution of indexed pages and backlinks</CardDescription>
+              <CardTitle className="text-foreground">Page Information</CardTitle>
+              <CardDescription>Title, meta tags, and Open Graph data</CardDescription>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={trafficBreakdown}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {trafficBreakdown.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                    formatter={(value: number) => value.toLocaleString()}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+            <CardContent className="space-y-4">
+              {results.title && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase mb-1">Page Title</p>
+                  <p className="text-sm font-semibold text-foreground">{results.title}</p>
+                </div>
+              )}
+              {results.meta.description && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase mb-1">Meta Description</p>
+                  <p className="text-sm text-foreground">{results.meta.description}</p>
+                </div>
+              )}
+              {results.meta.og.title && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase mb-1">Open Graph Title</p>
+                  <p className="text-sm font-semibold text-foreground">{results.meta.og.title}</p>
+                </div>
+              )}
+              {results.meta.og.description && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase mb-1">Open Graph Description</p>
+                  <p className="text-sm text-foreground">{results.meta.og.description}</p>
+                </div>
+              )}
+              {results.meta.og.image && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase mb-1">Open Graph Image</p>
+                  <img src={results.meta.og.image} alt="OG Image" className="max-w-xs rounded-md border border-border" />
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* WHOIS Information */}
-          {(results.whois.creationDate || results.whois.registrar) && (
+          {/* Headings */}
+          {(results.headings.h1.length > 0 || results.headings.h2.length > 0 || results.headings.h3.length > 0) && (
             <Card className="border border-border">
               <CardHeader>
-                <CardTitle className="text-foreground">Domain Information</CardTitle>
-                <CardDescription>WHOIS registration details</CardDescription>
+                <CardTitle className="text-foreground">Page Headings</CardTitle>
+                <CardDescription>H1, H2, and H3 tags found on the page</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {results.whois.creationDate && (
+                {results.headings.h1.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase mb-1">Creation Date</p>
-                    <p className="text-sm font-semibold text-foreground">
-                      {new Date(results.whois.creationDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
+                    <p className="text-xs text-muted-foreground uppercase mb-2">H1 Tags ({results.headings.h1.length})</p>
+                    <ul className="space-y-1">
+                      {results.headings.h1.map((h1, i) => (
+                        <li key={i} className="text-sm font-semibold text-foreground">• {h1}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
-                {results.whois.registrar && (
+                {results.headings.h2.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase mb-1">Registrar</p>
-                    <p className="text-sm font-semibold text-foreground">{results.whois.registrar}</p>
+                    <p className="text-xs text-muted-foreground uppercase mb-2">H2 Tags ({results.headings.h2.length})</p>
+                    <ul className="space-y-1">
+                      {results.headings.h2.map((h2, i) => (
+                        <li key={i} className="text-sm text-foreground">• {h2}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {results.headings.h3.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase mb-2">H3 Tags ({results.headings.h3.length})</p>
+                    <ul className="space-y-1">
+                      {results.headings.h3.map((h3, i) => (
+                        <li key={i} className="text-sm text-foreground text-muted-foreground">• {h3}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </CardContent>
             </Card>
           )}
 
-          {/* No Data Warning */}
-          {results.indexedPages === 0 && results.backlinks === 0 && (
-            <Card className="border border-yellow-500 bg-yellow-500/10">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground mb-1">Limited Data Available</p>
-                    <p className="text-sm text-muted-foreground">
-                      This domain may not be indexed by Google or may be very new. The traffic estimate is based on limited data.
-                    </p>
-                  </div>
+          {/* Internal Links */}
+          {results.links.internalLinks.length > 0 && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Internal Links</CardTitle>
+                <CardDescription>{results.links.internal} internal links found</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="max-h-64 overflow-y-auto space-y-1">
+                  {results.links.internalLinks.map((link, i) => (
+                    <a
+                      key={i}
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline break-all"
+                    >
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      {link}
+                    </a>
+                  ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* External Links */}
+          {results.links.externalLinks.length > 0 && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">External Links</CardTitle>
+                <CardDescription>{results.links.external} external links found</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="max-h-64 overflow-y-auto space-y-1">
+                  {results.links.externalLinks.map((link, i) => (
+                    <a
+                      key={i}
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline break-all"
+                    >
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      {link}
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Images */}
+          {results.images.images.length > 0 && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Images</CardTitle>
+                <CardDescription>{results.images.total} images found on the page</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {results.images.images.map((img, i) => (
+                    <div key={i} className="space-y-2">
+                      <img
+                        src={img.src}
+                        alt={img.alt || `Image ${i + 1}`}
+                        className="w-full h-24 object-cover rounded-md border border-border"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23ccc"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999">Image</text></svg>';
+                        }}
+                      />
+                      {img.alt && (
+                        <p className="text-xs text-muted-foreground truncate" title={img.alt}>
+                          {img.alt}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Text Preview */}
+          {results.textPreview && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Text Preview</CardTitle>
+                <CardDescription>First 500 characters of page content</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{results.textPreview}...</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Robots.txt */}
+          {results.robotsTxt && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Robots.txt</CardTitle>
+                <CardDescription>Content of robots.txt file</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-xs text-foreground bg-muted p-4 rounded-md overflow-x-auto">
+                  {results.robotsTxt}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Sitemap */}
+          {results.sitemapUrl && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Sitemap</CardTitle>
+                <CardDescription>Sitemap URL found</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <a
+                  href={results.sitemapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-primary hover:underline break-all"
+                >
+                  <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                  {results.sitemapUrl}
+                </a>
               </CardContent>
             </Card>
           )}
         </div>
       )}
 
-      {!results && !isAnalyzing && (
+      {!results && !isCrawling && (
         <Card className="border border-border">
           <CardContent className="py-16 text-center">
             <Globe className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <p className="text-muted-foreground">Enter a domain above to start analyzing traffic</p>
+            <p className="text-muted-foreground">Enter a URL above to start crawling</p>
           </CardContent>
         </Card>
       )}
@@ -396,7 +480,7 @@ function TrafficAnalysisContent() {
   );
 }
 
-export default function TrafficAnalysisPage() {
+export default function WebCrawlerPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -408,10 +492,10 @@ export default function TrafficAnalysisPage() {
               Back
             </Button>
           </Link>
-          <div className="text-2xl font-bold text-primary">Website Traffic Analysis</div>
+          <div className="text-2xl font-bold text-primary">Web Crawler</div>
         </div>
       </nav>
-      <TrafficAnalysisContent />
+      <WebCrawlerContent />
     </div>
   );
 }

@@ -1,172 +1,244 @@
 import { NextResponse } from "next/server";
-import { getJson } from "serpapi";
-import whois from "whois-json";
+import * as cheerio from "cheerio";
 import dns from "node:dns/promises";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const domain = searchParams.get('domain');
+    const url = searchParams.get('url');
 
-    if (!domain) {
+    if (!url) {
       return NextResponse.json(
-        { error: "Domain is required" },
+        { error: "URL is required" },
         { status: 400 }
       );
     }
 
-    // Clean domain (remove http/https/www)
-    const cleanDomain = domain
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .split('/')[0]
-      .trim();
+    // Normalize URL
+    let normalizedUrl = url.trim();
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    }
 
-    if (!cleanDomain) {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(normalizedUrl);
+    } catch (error) {
       return NextResponse.json(
-        { error: "Invalid domain format" },
+        { error: "Invalid URL format" },
         { status: 400 }
       );
     }
 
-    const domainExists = await checkDomainExists(cleanDomain);
+    const domain = parsedUrl.hostname.replace(/^www\./, '');
+    
+    // Check if domain exists
+    const domainExists = await checkDomainExists(domain);
     if (!domainExists) {
       return NextResponse.json(
         {
           error: "Domain does not exist or has no DNS records",
-          domain: cleanDomain,
+          url: normalizedUrl,
         },
         { status: 404 }
       );
     }
 
-    const apiKey = process.env.SERP_API_KEY as string;
-    
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "SERP_API_KEY is not configured" },
-        { status: 500 }
-      );
-    }
+    // Fetch the page
+    const startTime = Date.now();
+    let response: Response;
+    let html: string;
+    let statusCode: number;
 
-    // 1. SERP indexed pages
-    let indexedPages = 0;
     try {
-      const serp = await getJson({
-        engine: "google",
-        q: `site:${cleanDomain}`,
-        api_key: apiKey,
+      response = await fetch(normalizedUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       });
-      indexedPages = serp.search_information?.total_results || 0;
+      statusCode = response.status;
+      html = await response.text();
     } catch (error: any) {
-      console.error("Error fetching indexed pages:", error);
-      // Continue with 0 indexed pages if this fails
-    }
-
-    // 1b. Brand authority via general search volume
-    let brandSignal = 0;
-    try {
-      const brandSerp = await getJson({
-        engine: "google",
-        q: cleanDomain,
-        api_key: apiKey,
-      });
-      brandSignal = brandSerp.search_information?.total_results || 0;
-    } catch (error: any) {
-      console.error("Error fetching brand signal:", error);
-      // Continue if this fails
-    }
-
-    // 2. WHOIS domain age
-    let domainAgeYears = 1;
-    let whoisData: any = {};
-    try {
-      whoisData = await whois(cleanDomain);
-      if (whoisData.creationDate) {
-        const created = new Date(whoisData.creationDate);
-        const now = new Date();
-        const diff = now.getTime() - created.getTime();
-        domainAgeYears = Math.max(diff / (1000 * 60 * 60 * 24 * 365), 1);
+      if (error.name === 'AbortError') {
+        return NextResponse.json(
+          { error: "Request timeout. The website took too long to respond." },
+          { status: 408 }
+        );
       }
-    } catch (error: any) {
-      console.error("Error fetching WHOIS data:", error);
-      // Continue with default values if WHOIS fails
+      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        return NextResponse.json(
+          { error: "Cannot connect to the website. It may be down or unreachable." },
+          { status: 503 }
+        );
+      }
+      throw error;
     }
 
-    // 3. Estimate backlinks using indexed pages + brand signal
-    const backlinks = estimateBacklinks(indexedPages, brandSignal);
+    const loadTime = Date.now() - startTime;
 
-    // 4. Traffic estimation with logarithmic scaling so large domains score higher
-    const monthlyTraffic = estimateMonthlyTraffic(indexedPages, backlinks, domainAgeYears, brandSignal);
-
-    // Check if we have any meaningful data
-    if (indexedPages === 0 && backlinks === 0 && domainAgeYears === 1 && brandSignal === 0) {
+    if (!response.ok) {
       return NextResponse.json(
-        { 
-          error: "No data found for this domain. The domain may not be indexed or may not exist.",
-          domain: cleanDomain,
-          indexedPages: 0,
-          backlinks: 0,
-          domainAgeYears: 1,
-          estimatedTraffic: 0,
-          whois: {
-            creationDate: null,
-            registrar: null,
-          }
+        {
+          error: `Website returned status ${statusCode}`,
+          url: normalizedUrl,
+          statusCode,
         },
-        { status: 404 }
+        { status: response.status }
       );
+    }
+
+    // Parse HTML
+    const $ = cheerio.load(html);
+
+    // Extract data
+    const title = $('title').text().trim() || null;
+    const metaDescription = $('meta[name="description"]').attr('content') || null;
+    const metaKeywords = $('meta[name="keywords"]').attr('content') || null;
+    
+    // Open Graph tags
+    const ogTitle = $('meta[property="og:title"]').attr('content') || null;
+    const ogDescription = $('meta[property="og:description"]').attr('content') || null;
+    const ogImage = $('meta[property="og:image"]').attr('content') || null;
+    const ogUrl = $('meta[property="og:url"]').attr('content') || null;
+
+    // Extract links
+    const allLinks: string[] = [];
+    const internalLinks: string[] = [];
+    const externalLinks: string[] = [];
+
+    $('a[href]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (!href) return;
+
+      try {
+        const linkUrl = new URL(href, normalizedUrl);
+        const linkDomain = linkUrl.hostname.replace(/^www\./, '');
+        allLinks.push(linkUrl.href);
+
+        if (linkDomain === domain) {
+          internalLinks.push(linkUrl.href);
+        } else {
+          externalLinks.push(linkUrl.href);
+        }
+      } catch {
+        // Invalid URL, skip
+      }
+    });
+
+    // Extract images
+    const images: Array<{ src: string; alt: string }> = [];
+    $('img').each((_, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src');
+      const alt = $(el).attr('alt') || '';
+      if (src) {
+        try {
+          const imageUrl = new URL(src, normalizedUrl);
+          images.push({ src: imageUrl.href, alt });
+        } catch {
+          // Invalid URL, skip
+        }
+      }
+    });
+
+    // Extract headings
+    const headings = {
+      h1: $('h1').map((_, el) => $(el).text().trim()).get(),
+      h2: $('h2').map((_, el) => $(el).text().trim()).get(),
+      h3: $('h3').map((_, el) => $(el).text().trim()).get(),
+    };
+
+    // Extract text content (first 500 chars)
+    const bodyText = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 500);
+
+    // Check for robots.txt and sitemap
+    let robotsTxt: string | null = null;
+    let sitemapUrl: string | null = null;
+
+    try {
+      const robotsUrl = new URL('/robots.txt', normalizedUrl);
+      const robotsResponse = await fetch(robotsUrl.href, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (robotsResponse.ok) {
+        robotsTxt = await robotsResponse.text();
+        // Try to extract sitemap from robots.txt
+        const sitemapMatch = robotsTxt.match(/Sitemap:\s*(.+)/i);
+        if (sitemapMatch) {
+          sitemapUrl = sitemapMatch[1].trim();
+        }
+      }
+    } catch {
+      // robots.txt not found or error
+    }
+
+    // If no sitemap in robots.txt, try common sitemap locations
+    if (!sitemapUrl) {
+      const commonSitemaps = ['/sitemap.xml', '/sitemap_index.xml'];
+      for (const sitemapPath of commonSitemaps) {
+        try {
+          const sitemapCheckUrl = new URL(sitemapPath, normalizedUrl);
+          const sitemapResponse = await fetch(sitemapCheckUrl.href, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (sitemapResponse.ok) {
+            sitemapUrl = sitemapCheckUrl.href;
+            break;
+          }
+        } catch {
+          // Continue
+        }
+      }
     }
 
     return NextResponse.json({
-      domain: cleanDomain,
-      indexedPages,
-      backlinks,
-      domainAgeYears: Math.round(domainAgeYears * 10) / 10, // Round to 1 decimal
-      estimatedTraffic: monthlyTraffic,
-      whois: {
-        creationDate: whoisData.creationDate || null,
-        registrar: whoisData.registrar || null,
-      }
+      url: normalizedUrl,
+      domain,
+      statusCode,
+      loadTime,
+      title,
+      meta: {
+        description: metaDescription,
+        keywords: metaKeywords,
+        og: {
+          title: ogTitle,
+          description: ogDescription,
+          image: ogImage,
+          url: ogUrl,
+        },
+      },
+      links: {
+        total: allLinks.length,
+        internal: internalLinks.length,
+        external: externalLinks.length,
+        internalLinks: [...new Set(internalLinks)].slice(0, 50), // Unique, limit to 50
+        externalLinks: [...new Set(externalLinks)].slice(0, 50), // Unique, limit to 50
+      },
+      images: {
+        total: images.length,
+        images: images.slice(0, 20), // Limit to 20
+      },
+      headings,
+      textPreview: bodyText,
+      robotsTxt: robotsTxt ? robotsTxt.substring(0, 1000) : null, // Limit to 1000 chars
+      sitemapUrl,
     });
   } catch (error: any) {
-    console.error("Error analyzing website:", error);
+    console.error("Error crawling website:", error);
+    
+    if (error.message?.includes('fetch failed') || error.code === 'ECONNREFUSED') {
+      return NextResponse.json(
+        { error: "Cannot connect to the website. It may be down or unreachable." },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error.message || "Failed to analyze website" },
+      { error: error.message || "Failed to crawl website" },
       { status: 500 }
     );
   }
-}
-
-function estimateBacklinks(indexedPages: number, brandSignal: number): number {
-  if ((!indexedPages || indexedPages <= 0) && (!brandSignal || brandSignal <= 0)) {
-    return 0;
-  }
-
-  const safeIndexed = Math.max(indexedPages, 1);
-  const safeBrand = Math.max(brandSignal, 1);
-
-  const baseline = safeIndexed * 2;
-  const indexedGrowth = Math.pow(safeIndexed, 0.85);
-  const brandBoost = Math.pow(safeBrand, 0.6);
-  const estimated = baseline + indexedGrowth + brandBoost * 0.3;
-
-  return Math.round(Math.min(estimated, 200_000_000));
-}
-
-function estimateMonthlyTraffic(indexedPages: number, backlinks: number, domainAgeYears: number, brandSignal: number): number {
-  const safeIndexed = Math.max(indexedPages, 0);
-  const safeBacklinks = Math.max(backlinks, 0);
-  const safeDomainAge = Math.max(domainAgeYears, 1);
-  const safeBrand = Math.max(brandSignal, 0);
-
-  const indexedContribution = Math.pow(Math.max(safeIndexed, 1), 0.95) * 30;
-  const backlinkContribution = Math.pow(Math.max(safeBacklinks, 1), 0.8) * 5;
-  const brandContribution = Math.pow(Math.max(safeBrand, 1), 0.7) * 2;
-  const authorityBoost = 1 + Math.log10(safeDomainAge + 1);
-
-  const estimated = (indexedContribution + backlinkContribution + brandContribution) * authorityBoost;
-  return Math.round(Math.min(estimated, 30_000_000_000));
 }
 
 async function checkDomainExists(domain: string): Promise<boolean> {
@@ -196,4 +268,3 @@ async function checkDomainExists(domain: string): Promise<boolean> {
 
   return false;
 }
-

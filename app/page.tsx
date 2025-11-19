@@ -46,33 +46,35 @@ export default function Home() {
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-foreground">Powerful SEO Tools</h2>
         
         <div className="grid md:grid-cols-3 gap-8">
-          {/* Traffic Analysis */}
+          {/* Web Crawler */}
           <Card className="border border-border hover:border-primary/50 transition">
             <CardHeader>
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
                 <TrendingUp className="w-6 h-6 text-primary" />
               </div>
-              <CardTitle className="text-foreground">Website Traffic Analysis</CardTitle>
-              <CardDescription>See visitor metrics instantly</CardDescription>
+              <CardTitle className="text-foreground">Web Crawler</CardTitle>
+              <CardDescription>Crawl websites and extract links, images, meta tags, and SEO information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 bg-accent rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-sm text-muted-foreground">Total visitor count</span>
+                  <span className="text-sm text-muted-foreground">Extract links and images</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 bg-accent rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-sm text-muted-foreground">Traffic source breakdown</span>
+                  <span className="text-sm text-muted-foreground">Meta tags and Open Graph data
+                  </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 bg-accent rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-sm text-muted-foreground">Performance trends</span>
+                  <span className="text-sm text-muted-foreground">Robots.txt and sitemap detection
+                  </span>
                 </li>
               </ul>
               <Link href="/tools/traffic-analysis" className="block mt-6">
                 <Button variant="outline" className="w-full border-border hover:border-primary">
-                  Analyze Now
+                  Crawl Now
                 </Button>
               </Link>
             </CardContent>

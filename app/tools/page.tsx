@@ -48,30 +48,30 @@ export default function ToolsPage() {
         <h1 className="text-4xl font-bold text-foreground mb-12 text-balance">SEO Analysis Tools</h1>
         
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Traffic Analysis Card */}
+          {/* Web Crawler Card */}
           <Card className="border border-border hover:border-primary/50 transition overflow-hidden">
             <CardHeader className="bg-gradient-to-br from-primary/5 to-transparent">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                <TrendingUp className="w-6 h-6 text-primary" />
+                <Search className="w-6 h-6 text-primary" />
               </div>
-              <CardTitle className="text-foreground">Website Traffic Analysis</CardTitle>
-              <CardDescription>Analyze visitor metrics and performance</CardDescription>
+              <CardTitle className="text-foreground">Web Crawler</CardTitle>
+              <CardDescription>Crawl websites and extract SEO data</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-3">
                 <h4 className="font-semibold text-foreground">Features:</h4>
                 <ul className="space-y-2">
                   <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <span className="text-accent">✓</span> Total visitor counts
+                    <span className="text-accent">✓</span> Extract links and images
                   </li>
                   <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <span className="text-accent">✓</span> Traffic source breakdown
+                    <span className="text-accent">✓</span> Meta tags and Open Graph data
                   </li>
                   <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <span className="text-accent">✓</span> 30-day performance trends
+                    <span className="text-accent">✓</span> Page headings and structure
                   </li>
                   <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <span className="text-accent">✓</span> Device analysis
+                    <span className="text-accent">✓</span> Robots.txt and sitemap detection
                   </li>
                 </ul>
               </div>

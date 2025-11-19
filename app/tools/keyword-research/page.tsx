@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, SearchIcon, Zap, TrendingUp, DollarSign, BarChart3, ExternalLink } from 'lucide-react';
+import { ArrowLeft, SearchIcon, Zap, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, RadialBarChart, RadialBar, Legend } from 'recharts';
 
 interface TopResult {
   position: number;
@@ -20,11 +19,8 @@ interface TopResult {
 
 interface KeywordData {
   keyword: string;
-  totalResults: number;
-  adsCount: number;
-  volume: number;
-  cpc: number;
-  difficulty: number;
+  totalResults: number | null;
+  adsCount: number | null;
   topResults: TopResult[];
 }
 
@@ -66,29 +62,6 @@ function KeywordResearchContent() {
     }
   };
 
-  const getDifficultyColor = (difficulty: number) => {
-    if (difficulty < 30) return '#10b981'; // green
-    if (difficulty < 60) return '#f59e0b'; // yellow
-    return '#ef4444'; // red
-  };
-
-  const getDifficultyLabel = (difficulty: number) => {
-    if (difficulty < 30) return 'Easy';
-    if (difficulty < 60) return 'Medium';
-    return 'Hard';
-  };
-
-  // Chart data
-  const metricsData = results ? [
-    { name: 'Volume', value: results.volume, color: '#3b82f6' },
-    { name: 'CPC', value: results.cpc, color: '#10b981' },
-    { name: 'Difficulty', value: results.difficulty, color: getDifficultyColor(results.difficulty) },
-  ] : [];
-
-  const difficultyData = results ? [
-    { name: 'Difficulty', value: results.difficulty, fill: getDifficultyColor(results.difficulty) },
-    { name: 'Remaining', value: 100 - results.difficulty, fill: '#e5e7eb' },
-  ] : [];
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -96,7 +69,7 @@ function KeywordResearchContent() {
       <Card className="border border-border mb-8">
         <CardHeader>
           <CardTitle className="text-foreground">Keyword Research Tool</CardTitle>
-          <CardDescription>Analyze keywords with search volume, difficulty, and CPC estimates</CardDescription>
+          <CardDescription>Analyze keywords and view top search results</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
@@ -149,144 +122,44 @@ function KeywordResearchContent() {
           </Card>
 
           {/* Key Metrics */}
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">Search Volume</p>
-                    <p className="text-2xl font-bold text-foreground">{results.volume.toLocaleString()}</p>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-primary opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">CPC</p>
-                    <p className="text-2xl font-bold text-foreground">${results.cpc.toFixed(2)}</p>
-                  </div>
-                  <DollarSign className="w-8 h-8 text-accent opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">Difficulty</p>
-                    <p className="text-2xl font-bold text-foreground">{results.difficulty}</p>
-                    <p className="text-xs text-muted-foreground">{getDifficultyLabel(results.difficulty)}</p>
-                  </div>
-                  <BarChart3 className="w-8 h-8 text-destructive opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
+          <div className="grid md:grid-cols-3 gap-4">
             <Card className="border border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase">Total Results</p>
-                    <p className="text-2xl font-bold text-foreground">{(results.totalResults / 1_000_000).toFixed(1)}M</p>
+                    {results.totalResults !== null && results.totalResults > 0 ? (
+                      <>
+                        <p className="text-2xl font-bold text-foreground">{(results.totalResults / 1_000_000).toFixed(1)}M</p>
+                        <p className="text-xs text-muted-foreground">Search results</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg font-semibold text-muted-foreground">No data available</p>
+                        <p className="text-xs text-muted-foreground">Search results</p>
+                      </>
+                    )}
                   </div>
                   <Zap className="w-8 h-8 text-primary opacity-50" />
                 </div>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Charts Section */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Metrics Bar Chart */}
-            <Card className="border border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Key Metrics</CardTitle>
-                <CardDescription>Volume, CPC, and Difficulty comparison</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={metricsData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                      {metricsData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Difficulty Radial Chart */}
-            <Card className="border border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Difficulty Score</CardTitle>
-                <CardDescription>Keyword ranking difficulty (0-100)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadialBarChart 
-                    cx="50%" 
-                    cy="50%" 
-                    innerRadius="60%" 
-                    outerRadius="90%" 
-                    data={difficultyData}
-                    startAngle={90}
-                    endAngle={-270}
-                  >
-                    <RadialBar
-                      dataKey="value"
-                      cornerRadius={10}
-                      fill={(entry: any) => entry.fill}
-                    />
-                    <Legend
-                      iconSize={10}
-                      layout="vertical"
-                      verticalAlign="middle"
-                      align="right"
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                  </RadialBarChart>
-                </ResponsiveContainer>
-                <div className="text-center mt-4">
-                  <p className="text-3xl font-bold" style={{ color: getDifficultyColor(results.difficulty) }}>
-                    {results.difficulty}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{getDifficultyLabel(results.difficulty)} to Rank</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Additional Stats */}
-          <div className="grid md:grid-cols-2 gap-4">
             <Card className="border border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase">Ads Count</p>
-                    <p className="text-2xl font-bold text-foreground">{results.adsCount}</p>
-                    <p className="text-xs text-muted-foreground">Sponsored results</p>
+                    {results.adsCount !== null && results.adsCount > 0 ? (
+                      <>
+                        <p className="text-2xl font-bold text-foreground">{results.adsCount}</p>
+                        <p className="text-xs text-muted-foreground">Sponsored results</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg font-semibold text-muted-foreground">No data available</p>
+                        <p className="text-xs text-muted-foreground">Sponsored results</p>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -297,8 +170,17 @@ function KeywordResearchContent() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase">Top Results</p>
-                    <p className="text-2xl font-bold text-foreground">{results.topResults.length}</p>
-                    <p className="text-xs text-muted-foreground">Organic listings</p>
+                    {results.topResults.length > 0 ? (
+                      <>
+                        <p className="text-2xl font-bold text-foreground">{results.topResults.length}</p>
+                        <p className="text-xs text-muted-foreground">Organic listings</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg font-semibold text-muted-foreground">No data available</p>
+                        <p className="text-xs text-muted-foreground">Organic listings</p>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -306,7 +188,7 @@ function KeywordResearchContent() {
           </div>
 
           {/* Top Results */}
-          {results.topResults.length > 0 && (
+          {results.topResults.length > 0 ? (
             <Card className="border border-border">
               <CardHeader>
                 <CardTitle className="text-foreground">Top Search Results</CardTitle>
@@ -358,6 +240,18 @@ function KeywordResearchContent() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Top Search Results</CardTitle>
+                <CardDescription>Organic results for this keyword</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="py-8 text-center">
+                  <p className="text-muted-foreground">No data available</p>
                 </div>
               </CardContent>
             </Card>
