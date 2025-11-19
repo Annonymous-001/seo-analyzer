@@ -20,6 +20,18 @@ interface TrafficData {
   };
 }
 
+const normalizeTrafficData = (data: any, fallbackDomain: string): TrafficData => ({
+  domain: typeof data?.domain === 'string' && data.domain.trim().length > 0 ? data.domain : fallbackDomain,
+  indexedPages: Number.isFinite(Number(data?.indexedPages)) ? Number(data.indexedPages) : 0,
+  backlinks: Number.isFinite(Number(data?.backlinks)) ? Number(data.backlinks) : 0,
+  domainAgeYears: Number.isFinite(Number(data?.domainAgeYears)) ? Number(data.domainAgeYears) : 0,
+  estimatedTraffic: Number.isFinite(Number(data?.estimatedTraffic)) ? Number(data.estimatedTraffic) : 0,
+  whois: {
+    creationDate: data?.whois?.creationDate ?? null,
+    registrar: data?.whois?.registrar ?? null,
+  },
+});
+
 function TrafficAnalysisContent() {
   const [domain, setDomain] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -42,13 +54,13 @@ function TrafficAnalysisContent() {
       if (!response.ok) {
         if (response.status === 404) {
           // Show the data even if it's a 404 (no results found)
-          setResults(data);
+          setResults(normalizeTrafficData(data, domain));
           setError(data.error || 'Limited data available for this domain');
         } else {
           throw new Error(data.error || 'Failed to analyze domain');
         }
       } else {
-        setResults(data);
+        setResults(normalizeTrafficData(data, domain));
       }
     } catch (err: any) {
       console.error('Error analyzing domain:', err);

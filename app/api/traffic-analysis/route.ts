@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getJson } from "serpapi";
 import whois from "whois-json";
+import dns from "node:dns/promises";
 
 export async function GET(req: Request) {
   try {
@@ -28,6 +29,17 @@ export async function GET(req: Request) {
       );
     }
 
+    const domainExists = await checkDomainExists(cleanDomain);
+    if (!domainExists) {
+      return NextResponse.json(
+        {
+          error: "Domain does not exist or has no DNS records",
+          domain: cleanDomain,
+        },
+        { status: 404 }
+      );
+    }
+
     const apiKey = process.env.SERP_API_KEY as string;
     
     if (!apiKey) {
@@ -49,6 +61,17 @@ export async function GET(req: Request) {
     } catch (error: any) {
       console.error("Error fetching indexed pages:", error);
       // Continue with 0 indexed pages if this fails
+    }
+
+    if (indexedPages === 0) {
+      return NextResponse.json(
+        {
+          error: "No pages indexed for this domain",
+          domain: cleanDomain,
+          indexedPages: 0,
+        },
+        { status: 404 }
+      );
     }
 
     // 2. WHOIS domain age
@@ -116,5 +139,33 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
+}
+
+async function checkDomainExists(domain: string): Promise<boolean> {
+  const resolvers: Array<() => Promise<unknown>> = [
+    () => dns.resolve4(domain),
+    () => dns.resolve6(domain),
+    () => dns.resolveCname(domain),
+    () => dns.resolveAny(domain),
+  ];
+
+  for (const resolve of resolvers) {
+    try {
+      const records = await resolve();
+      if (Array.isArray(records) && records.length > 0) {
+        return true;
+      }
+      if (records) {
+        return true;
+      }
+    } catch (error: any) {
+      const benignErrors = ["ENODATA", "ENOTFOUND", "ESERVFAIL", "EREFUSED", "NOTFOUND"];
+      if (!benignErrors.includes(error?.code)) {
+        console.error("DNS lookup failed:", error);
+      }
+    }
+  }
+
+  return false;
 }
 
