@@ -63,17 +63,6 @@ export async function GET(req: Request) {
       // Continue with 0 indexed pages if this fails
     }
 
-    if (indexedPages === 0) {
-      return NextResponse.json(
-        {
-          error: "No pages indexed for this domain",
-          domain: cleanDomain,
-          indexedPages: 0,
-        },
-        { status: 404 }
-      );
-    }
-
     // 2. WHOIS domain age
     let domainAgeYears = 1;
     let whoisData: any = {};
