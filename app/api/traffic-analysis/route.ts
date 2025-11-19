@@ -63,6 +63,20 @@ export async function GET(req: Request) {
       // Continue with 0 indexed pages if this fails
     }
 
+    // 1b. Brand authority via general search volume
+    let brandSignal = 0;
+    try {
+      const brandSerp = await getJson({
+        engine: "google",
+        q: cleanDomain,
+        api_key: apiKey,
+      });
+      brandSignal = brandSerp.search_information?.total_results || 0;
+    } catch (error: any) {
+      console.error("Error fetching brand signal:", error);
+      // Continue if this fails
+    }
+
     // 2. WHOIS domain age
     let domainAgeYears = 1;
     let whoisData: any = {};
@@ -79,20 +93,14 @@ export async function GET(req: Request) {
       // Continue with default values if WHOIS fails
     }
 
-    // 3. Estimate backlinks (simplified - using indexed pages as proxy)
-    // The Bing hack doesn't work well in serverless, so we'll estimate based on indexed pages
-    const backlinks = Math.round((indexedPages / 10) * 50); // Rough estimate
+    // 3. Estimate backlinks using indexed pages + brand signal
+    const backlinks = estimateBacklinks(indexedPages, brandSignal);
 
-    // 4. Traffic estimation
-    const score =
-      (indexedPages / 1_000_000) * 40 +
-      (backlinks / 5000) * 30 +
-      domainAgeYears * 5;
-
-    const monthlyTraffic = Math.round(score * 1000);
+    // 4. Traffic estimation with logarithmic scaling so large domains score higher
+    const monthlyTraffic = estimateMonthlyTraffic(indexedPages, backlinks, domainAgeYears, brandSignal);
 
     // Check if we have any meaningful data
-    if (indexedPages === 0 && backlinks === 0 && domainAgeYears === 1) {
+    if (indexedPages === 0 && backlinks === 0 && domainAgeYears === 1 && brandSignal === 0) {
       return NextResponse.json(
         { 
           error: "No data found for this domain. The domain may not be indexed or may not exist.",
@@ -128,6 +136,37 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
+}
+
+function estimateBacklinks(indexedPages: number, brandSignal: number): number {
+  if ((!indexedPages || indexedPages <= 0) && (!brandSignal || brandSignal <= 0)) {
+    return 0;
+  }
+
+  const safeIndexed = Math.max(indexedPages, 1);
+  const safeBrand = Math.max(brandSignal, 1);
+
+  const baseline = safeIndexed * 2;
+  const indexedGrowth = Math.pow(safeIndexed, 0.85);
+  const brandBoost = Math.pow(safeBrand, 0.6);
+  const estimated = baseline + indexedGrowth + brandBoost * 0.3;
+
+  return Math.round(Math.min(estimated, 200_000_000));
+}
+
+function estimateMonthlyTraffic(indexedPages: number, backlinks: number, domainAgeYears: number, brandSignal: number): number {
+  const safeIndexed = Math.max(indexedPages, 0);
+  const safeBacklinks = Math.max(backlinks, 0);
+  const safeDomainAge = Math.max(domainAgeYears, 1);
+  const safeBrand = Math.max(brandSignal, 0);
+
+  const indexedContribution = Math.pow(Math.max(safeIndexed, 1), 0.95) * 30;
+  const backlinkContribution = Math.pow(Math.max(safeBacklinks, 1), 0.8) * 5;
+  const brandContribution = Math.pow(Math.max(safeBrand, 1), 0.7) * 2;
+  const authorityBoost = 1 + Math.log10(safeDomainAge + 1);
+
+  const estimated = (indexedContribution + backlinkContribution + brandContribution) * authorityBoost;
+  return Math.round(Math.min(estimated, 30_000_000_000));
 }
 
 async function checkDomainExists(domain: string): Promise<boolean> {

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getJson } from "serpapi";
 
 /**
- * Estimate search volume (FAKE MODEL for college projects)
  */
 function estimateVolume(totalResults: number): number {
   if (totalResults > 1_000_000_000) return 100_000;
@@ -12,9 +11,6 @@ function estimateVolume(totalResults: number): number {
   return 1000;
 }
 
-/**
- * Estimate CPC (completely custom)
- */
 function estimateCPC(adsCount: number): number {
   return adsCount * 0.5 + 0.2; // ₹0.5 increase per ad
 }

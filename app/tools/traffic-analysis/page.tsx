@@ -38,6 +38,22 @@ function TrafficAnalysisContent() {
   const [results, setResults] = useState<TrafficData | null>(null);
   const [error, setError] = useState('');
 
+  const interpretApiError = (status: number, message?: string) => {
+    if (status === 429) {
+      return "Service is receiving heavy usage. Please wait a moment and try again.";
+    }
+
+    if (status >= 500) {
+      return "Traffic analysis API is unavailable right now. Please reload and try again shortly.";
+    }
+
+    if (status === 404) {
+      return message || "Domain data not found.";
+    }
+
+    return message || "Unexpected error from the traffic analyzer. Please try again.";
+  };
+
   const handleAnalyze = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!domain) return;
@@ -52,19 +68,19 @@ function TrafficAnalysisContent() {
       const data = await response.json();
 
       if (!response.ok) {
+        const friendlyMessage = interpretApiError(response.status, data.error);
         if (response.status === 404) {
-          // Show the data even if it's a 404 (no results found)
           setResults(normalizeTrafficData(data, domain));
-          setError(data.error || 'Limited data available for this domain');
+          setError(friendlyMessage);
         } else {
-          throw new Error(data.error || 'Failed to analyze domain');
+          throw new Error(friendlyMessage);
         }
       } else {
         setResults(normalizeTrafficData(data, domain));
       }
     } catch (err: any) {
       console.error('Error analyzing domain:', err);
-      setError(err.message || 'An error occurred while analyzing. Please try again.');
+      setError(err?.message || 'Traffic analyzer is unreachable. Please reload and try again.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -103,7 +119,7 @@ function TrafficAnalysisContent() {
           <form onSubmit={handleAnalyze} className="space-y-4">
             <div className="flex gap-4">
               <Input
-                placeholder="Enter domain (e.g., youtube.com or example.com)"
+                placeholder="Enter domain (e.g. google.com)"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 className="bg-input text-foreground border-border"
