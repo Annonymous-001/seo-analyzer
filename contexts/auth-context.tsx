@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const protectedRoutes = ['/tools', '/tools/traffic-analysis', '/tools/keyword-research', '/tools/local-seo'];
+    const protectedRoutes = ['/tools', '/tools/web-crawler', '/tools/keyword-research', '/tools/local-seo'];
     const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
     if (isProtectedRoute && !isAuthenticated) {

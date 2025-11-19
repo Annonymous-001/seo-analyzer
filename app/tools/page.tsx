@@ -75,7 +75,7 @@ export default function ToolsPage() {
                   </li>
                 </ul>
               </div>
-              <Link href="/tools/traffic-analysis" className="block">
+              <Link href="/tools/web-crawler" className="block">
                 <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                   Open Tool
                 </Button>

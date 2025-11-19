@@ -37,7 +37,7 @@ export async function GET(req: Request) {
     if (!domainExists) {
       return NextResponse.json(
         {
-          error: "Domain does not exist or has no DNS records",
+          error: "No website found to crawl",
           url: normalizedUrl,
         },
         { status: 404 }

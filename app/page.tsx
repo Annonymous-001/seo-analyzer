@@ -72,7 +72,7 @@ export default function Home() {
                   </span>
                 </li>
               </ul>
-              <Link href="/tools/traffic-analysis" className="block mt-6">
+              <Link href="/tools/web-crawler" className="block mt-6">
                 <Button variant="outline" className="w-full border-border hover:border-primary">
                   Crawl Now
                 </Button>
