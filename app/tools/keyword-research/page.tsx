@@ -2,67 +2,107 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, SearchIcon, Zap } from 'lucide-react';
+import { ArrowLeft, SearchIcon, Zap, TrendingUp, DollarSign, BarChart3, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, RadialBarChart, RadialBar, Legend } from 'recharts';
+
+interface TopResult {
+  position: number;
+  title: string;
+  link: string;
+  displayed_link?: string;
+  snippet?: string;
+  source?: string;
+  favicon?: string;
+}
+
+interface KeywordData {
+  keyword: string;
+  totalResults: number;
+  adsCount: number;
+  volume: number;
+  cpc: number;
+  difficulty: number;
+  topResults: TopResult[];
+}
 
 function KeywordResearchContent() {
   const [keyword, setKeyword] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState(null);
+  const [results, setResults] = useState<KeywordData | null>(null);
+  const [error, setError] = useState('');
 
-  const handleSearch = async (e) => {
+  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!keyword) return;
     
     setIsSearching(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    setError('');
+    setResults(null);
     
-    const generateKeywords = () => {
-      const variations = [
-        keyword,
-        `best ${keyword}`,
-        `${keyword} guide`,
-        `how to ${keyword}`,
-        `${keyword} tools`,
-        `${keyword} tips`,
-        `cheap ${keyword}`,
-        `${keyword} for beginners`,
-      ];
-      
-      return variations.map((kw, idx) => ({
-        keyword: kw,
-        searchVolume: Math.floor(Math.random() * 50000) + 1000,
-        difficulty: Math.floor(Math.random() * 100),
-        cpc: (Math.random() * 5 + 0.5).toFixed(2),
-      }));
-    };
-    
-    setResults(generateKeywords());
-    setIsSearching(false);
+    try {
+      const response = await fetch('/api/keyword-research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keyword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch keyword data');
+      }
+
+      setResults(data);
+    } catch (err: any) {
+      console.error('Error searching keywords:', err);
+      setError(err.message || 'An error occurred while searching. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  const getDifficultyColor = (difficulty) => {
-    if (difficulty < 30) return 'text-accent';
-    if (difficulty < 60) return 'text-yellow-500';
-    return 'text-destructive';
+  const getDifficultyColor = (difficulty: number) => {
+    if (difficulty < 30) return '#10b981'; // green
+    if (difficulty < 60) return '#f59e0b'; // yellow
+    return '#ef4444'; // red
   };
+
+  const getDifficultyLabel = (difficulty: number) => {
+    if (difficulty < 30) return 'Easy';
+    if (difficulty < 60) return 'Medium';
+    return 'Hard';
+  };
+
+  // Chart data
+  const metricsData = results ? [
+    { name: 'Volume', value: results.volume, color: '#3b82f6' },
+    { name: 'CPC', value: results.cpc, color: '#10b981' },
+    { name: 'Difficulty', value: results.difficulty, color: getDifficultyColor(results.difficulty) },
+  ] : [];
+
+  const difficultyData = results ? [
+    { name: 'Difficulty', value: results.difficulty, fill: getDifficultyColor(results.difficulty) },
+    { name: 'Remaining', value: 100 - results.difficulty, fill: '#e5e7eb' },
+  ] : [];
 
   return (
-    <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Input Section */}
       <Card className="border border-border mb-8">
         <CardHeader>
-          <CardTitle className="text-foreground">Find Rankable Keywords</CardTitle>
-          <CardDescription>Search for keywords with volume and difficulty data</CardDescription>
+          <CardTitle className="text-foreground">Keyword Research Tool</CardTitle>
+          <CardDescription>Analyze keywords with search volume, difficulty, and CPC estimates</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="flex gap-4">
               <Input
-                placeholder="Enter seed keyword (e.g., SEO tools)"
+                placeholder="Enter keyword (e.g., SEO tools)"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 className="bg-input text-foreground border-border"
@@ -75,80 +115,257 @@ function KeywordResearchContent() {
                 {isSearching ? 'Searching...' : 'Search'}
               </Button>
             </div>
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md whitespace-pre-wrap">
+                {error}
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
 
-      {results && (
-        <>
-          <div className="mb-6">
-            <p className="text-sm text-muted-foreground">
-              Found <span className="font-bold text-foreground">{results.length}</span> keyword variations
-            </p>
-          </div>
-
-          <Card className="border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-border bg-muted/50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Keyword</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Search Volume</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Difficulty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">CPC</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Opportunity</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {results.map((item, idx) => {
-                    const opportunity = (item.searchVolume / item.difficulty) * 100;
-                    return (
-                      <tr key={idx} className="hover:bg-muted/30 transition">
-                        <td className="px-6 py-4 text-sm font-medium text-foreground">{item.keyword}</td>
-                        <td className="px-6 py-4 text-sm text-foreground">{item.searchVolume.toLocaleString()}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 bg-muted rounded-full h-1.5">
-                              <div 
-                                className={`h-1.5 rounded-full ${item.difficulty < 30 ? 'bg-accent' : item.difficulty < 60 ? 'bg-yellow-500' : 'bg-destructive'}`}
-                                style={{ width: `${item.difficulty}%` }}
-                              />
-                            </div>
-                            <span className={`text-xs font-semibold ${getDifficultyColor(item.difficulty)}`}>
-                              {item.difficulty}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-foreground">${item.cpc}</td>
-                        <td className="px-6 py-4 text-sm">
-                          {opportunity > 500 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-accent/10 text-accent rounded-md text-xs font-semibold">
-                              <Zap className="w-3 h-3" />
-                              High
-                            </span>
-                          )}
-                          {opportunity <= 500 && opportunity > 100 && (
-                            <span className="inline-flex items-center px-2 py-1 bg-muted rounded-md text-xs font-semibold text-foreground">
-                              Medium
-                            </span>
-                          )}
-                          {opportunity <= 100 && (
-                            <span className="inline-flex items-center px-2 py-1 bg-muted rounded-md text-xs font-semibold text-muted-foreground">
-                              Low
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
+      {isSearching && (
+        <Card className="border border-border">
+          <CardContent className="py-16 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Analyzing keyword data...</p>
+          </CardContent>
+        </Card>
       )}
 
-      {!results && (
+      {results && (
+        <div className="space-y-6">
+          {/* Keyword Header */}
+          <Card className="border border-border">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <SearchIcon className="w-6 h-6 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground uppercase">Keyword</p>
+                  <p className="text-2xl font-bold text-foreground">{results.keyword}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Key Metrics */}
+          <div className="grid md:grid-cols-4 gap-4">
+            <Card className="border border-border">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">Search Volume</p>
+                    <p className="text-2xl font-bold text-foreground">{results.volume.toLocaleString()}</p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-primary opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">CPC</p>
+                    <p className="text-2xl font-bold text-foreground">${results.cpc.toFixed(2)}</p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-accent opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">Difficulty</p>
+                    <p className="text-2xl font-bold text-foreground">{results.difficulty}</p>
+                    <p className="text-xs text-muted-foreground">{getDifficultyLabel(results.difficulty)}</p>
+                  </div>
+                  <BarChart3 className="w-8 h-8 text-destructive opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">Total Results</p>
+                    <p className="text-2xl font-bold text-foreground">{(results.totalResults / 1_000_000).toFixed(1)}M</p>
+                  </div>
+                  <Zap className="w-8 h-8 text-primary opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts Section */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Metrics Bar Chart */}
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Key Metrics</CardTitle>
+                <CardDescription>Volume, CPC, and Difficulty comparison</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={metricsData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis stroke="hsl(var(--muted-foreground))" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      {metricsData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Difficulty Radial Chart */}
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Difficulty Score</CardTitle>
+                <CardDescription>Keyword ranking difficulty (0-100)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadialBarChart 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius="60%" 
+                    outerRadius="90%" 
+                    data={difficultyData}
+                    startAngle={90}
+                    endAngle={-270}
+                  >
+                    <RadialBar
+                      dataKey="value"
+                      cornerRadius={10}
+                      fill={(entry: any) => entry.fill}
+                    />
+                    <Legend
+                      iconSize={10}
+                      layout="vertical"
+                      verticalAlign="middle"
+                      align="right"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <div className="text-center mt-4">
+                  <p className="text-3xl font-bold" style={{ color: getDifficultyColor(results.difficulty) }}>
+                    {results.difficulty}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{getDifficultyLabel(results.difficulty)} to Rank</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Additional Stats */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card className="border border-border">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">Ads Count</p>
+                    <p className="text-2xl font-bold text-foreground">{results.adsCount}</p>
+                    <p className="text-xs text-muted-foreground">Sponsored results</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">Top Results</p>
+                    <p className="text-2xl font-bold text-foreground">{results.topResults.length}</p>
+                    <p className="text-xs text-muted-foreground">Organic listings</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Top Results */}
+          {results.topResults.length > 0 && (
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Top Search Results</CardTitle>
+                <CardDescription>Top {results.topResults.length} organic results for this keyword</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {results.topResults.map((result, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-4 rounded-lg border border-border hover:bg-muted/30 transition"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-sm font-bold text-primary">#{result.position}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-2 mb-2">
+                            {result.favicon && (
+                              <img 
+                                src={result.favicon} 
+                                alt="" 
+                                className="w-4 h-4 mt-1 flex-shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            )}
+                            <a 
+                              href={result.link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-sm font-semibold text-primary hover:underline flex-1"
+                            >
+                              {result.title}
+                              <ExternalLink className="w-3 h-3 inline-block ml-1" />
+                            </a>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            {result.displayed_link || result.link}
+                          </p>
+                          {result.snippet && (
+                            <p className="text-sm text-foreground line-clamp-2">{result.snippet}</p>
+                          )}
+                          {result.source && (
+                            <p className="text-xs text-muted-foreground mt-2">Source: {result.source}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {!results && !isSearching && (
         <Card className="border border-border">
           <CardContent className="py-16 text-center">
             <SearchIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />

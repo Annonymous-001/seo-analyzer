@@ -7,41 +7,101 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
+interface BusinessResult {
+  position: number;
+  title: string;
+  place_id: string;
+  rating?: number;
+  reviews?: number | string;
+  type?: string;
+  types?: string[];
+  address?: string;
+  phone?: string;
+  website?: string;
+  open_state?: string;
+  price?: string;
+  gps_coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  user_review?: string;
+  thumbnail?: string;
+  description?: string;
+}
+
 function LocalSEOContent() {
   const [businessName, setBusinessName] = useState('');
-  const [location, setLocation] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState(null);
+  const [results, setResults] = useState<BusinessResult[]>([]);
+  const [error, setError] = useState('');
+  
+  // Fixed location coordinates (Delhi, India) - SerpAPI format with @ prefix and zoom
+  const FIXED_LOCATION = '@28.6139,77.2090,15z';
 
-  const handleSearch = async (e) => {
+  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!businessName || !location) return;
+    if (!businessName) return;
     
     setIsSearching(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    setError('');
+    setResults([]);
     
-    setResults({
-      businessName,
-      location,
-      googleMapsRank: Math.floor(Math.random() * 20) + 1,
-      averageRating: (Math.random() * 2 + 3.5).toFixed(1),
-      totalReviews: Math.floor(Math.random() * 500) + 20,
-      listingStatus: ['Complete', 'Incomplete', 'Needs Update'][Math.floor(Math.random() * 3)],
-      photos: Math.floor(Math.random() * 50) + 5,
-      recentReviews: [
-        { author: 'John D.', rating: 5, text: 'Great service and friendly staff!' },
-        { author: 'Sarah M.', rating: 4, text: 'Good quality, would recommend' },
-        { author: 'Mike R.', rating: 5, text: 'Excellent experience, very satisfied' },
-      ],
-      categories: [
-        'Local Business',
-        'Service Provider',
-        'Retail Store',
-      ].sort(() => Math.random() - 0.5).slice(0, 2),
-    });
-    
-    setIsSearching(false);
+    try {
+      const response = await fetch('/api/local-seo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: businessName,
+          location: FIXED_LOCATION,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.error || 'Failed to fetch business data';
+        const errorDetails = data.details ? `\n\n${data.details}` : '';
+        throw new Error(errorMessage + errorDetails);
+      }
+
+      // Parse SerpAPI response
+      const localResults = data.local_results || [];
+      
+      if (localResults.length === 0) {
+        setError('No businesses found. Try a different search term or location.');
+        setIsSearching(false);
+        return;
+      }
+
+      // Map all results to our BusinessResult interface
+      const parsedResults: BusinessResult[] = localResults.map((result: any) => ({
+        position: result.position || 0,
+        title: result.title || '',
+        place_id: result.place_id || '',
+        rating: result.rating,
+        reviews: result.reviews,
+        type: result.type,
+        types: result.types || [],
+        address: result.address,
+        phone: result.phone,
+        website: result.website,
+        open_state: result.open_state,
+        price: result.price,
+        gps_coordinates: result.gps_coordinates,
+        user_review: result.user_review,
+        thumbnail: result.thumbnail || result.serpapi_thumbnail,
+        description: result.description,
+      }));
+      
+      setResults(parsedResults);
+    } catch (err: any) {
+      console.error('Error searching business:', err);
+      setError(err.message || 'An error occurred while searching. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -54,19 +114,16 @@ function LocalSEOContent() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div>
               <Input
                 placeholder="Business name"
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
                 className="bg-input text-foreground border-border"
               />
-              <Input
-                placeholder="City/Location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="bg-input text-foreground border-border"
-              />
+              <p className="text-xs text-muted-foreground mt-2 ml-1">
+                Location: Delhi, India (@28.6139, 77.2090, 15z)
+              </p>
             </div>
             <Button 
               type="submit" 
@@ -75,141 +132,178 @@ function LocalSEOContent() {
             >
               {isSearching ? 'Searching...' : 'Search Business'}
             </Button>
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md whitespace-pre-wrap">
+                {error}
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
 
-      {results && (
+      {results.length > 0 && (
         <>
-          {/* Summary Stats */}
-          <div className="grid md:grid-cols-4 gap-4 mb-8">
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">Maps Rank</p>
-                    <p className="text-2xl font-bold text-foreground">#{results.googleMapsRank}</p>
-                  </div>
-                  <MapPin className="w-8 h-8 text-primary opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">Rating</p>
-                    <p className="text-2xl font-bold text-foreground">{results.averageRating}⭐</p>
-                  </div>
-                  <Star className="w-8 h-8 text-accent opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">Reviews</p>
-                    <p className="text-2xl font-bold text-foreground">{results.totalReviews}</p>
-                  </div>
-                  <MessageSquare className="w-8 h-8 text-primary opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">Photos</p>
-                    <p className="text-2xl font-bold text-foreground">{results.photos}</p>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-accent opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Business Info */}
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            {/* Listing Status */}
-            <Card className="border border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Business Listing</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          {/* Results Summary */}
+          <Card className="border border-border mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase text-muted-foreground mb-2">Status</p>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${results.listingStatus === 'Complete' ? 'bg-accent' : results.listingStatus === 'Incomplete' ? 'bg-yellow-500' : 'bg-destructive'}`}></div>
-                    <p className="font-semibold text-foreground">{results.listingStatus}</p>
-                  </div>
+                  <p className="text-sm text-muted-foreground">Total Results</p>
+                  <p className="text-2xl font-bold text-foreground">{results.length} businesses found</p>
                 </div>
-                <div className="pt-4 border-t border-border">
-                  <p className="text-xs uppercase text-muted-foreground mb-3">Categories</p>
-                  <div className="flex flex-wrap gap-2">
-                    {results.categories.map((cat, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium">
-                        {cat}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <Button className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90">
-                  Update Listing
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Recent Reviews */}
-            <Card className="border border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Recent Reviews</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-4">
-                  {results.recentReviews.map((review, idx) => (
-                    <li key={idx} className="pb-4 border-b border-border last:border-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <p className="font-semibold text-foreground">{review.author}</p>
-                        <span className="text-accent text-sm">{'⭐'.repeat(review.rating)}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{review.text}</p>
-                    </li>
-                  ))}
-                </ul>
-                <Button variant="outline" className="w-full mt-4 border-border">
-                  View All Reviews
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Management Actions */}
-          <Card className="border border-border">
-            <CardHeader>
-              <CardTitle className="text-foreground">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-3 gap-4">
-                <Button variant="outline" className="border-border h-12">
-                  Add Photos
-                </Button>
-                <Button variant="outline" className="border-border h-12">
-                  Respond to Reviews
-                </Button>
-                <Button variant="outline" className="border-border h-12">
-                  Edit Info
-                </Button>
+                <MapPin className="w-8 h-8 text-primary opacity-50" />
               </div>
             </CardContent>
           </Card>
+
+          {/* All Business Results */}
+          <div className="space-y-4">
+            {results.map((business) => (
+              <Card key={business.place_id} className="border border-border hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row gap-6">
+                    {/* Business Image */}
+                    {business.thumbnail && (
+                      <div className="flex-shrink-0">
+                        <img 
+                          src={business.thumbnail} 
+                          alt={business.title}
+                          className="w-32 h-32 object-cover rounded-lg"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Business Info */}
+                    <div className="flex-1 space-y-3">
+                      {/* Position and Title */}
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-sm font-bold text-primary">#{business.position}</span>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-foreground">{business.title}</h3>
+                            {business.type && (
+                              <p className="text-sm text-muted-foreground">{business.type}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rating and Reviews */}
+                      <div className="flex items-center gap-4 flex-wrap">
+                        {business.rating && (
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 text-accent fill-current" />
+                            <span className="font-semibold text-foreground">{business.rating}</span>
+                          </div>
+                        )}
+                        {business.reviews && (
+                          <div className="flex items-center gap-1">
+                            <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {typeof business.reviews === 'number' 
+                                ? business.reviews.toLocaleString() 
+                                : business.reviews} reviews
+                            </span>
+                          </div>
+                        )}
+                        {business.price && (
+                          <span className="text-sm font-medium text-foreground">{business.price}</span>
+                        )}
+                        {business.open_state && (
+                          <span className="text-sm text-muted-foreground">{business.open_state}</span>
+                        )}
+                      </div>
+
+                      {/* Address */}
+                      {business.address && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-muted-foreground">{business.address}</p>
+                        </div>
+                      )}
+
+                      {/* Description */}
+                      {business.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">{business.description}</p>
+                      )}
+
+                      {/* User Review */}
+                      {business.user_review && (
+                        <div className="bg-muted/50 p-3 rounded-md">
+                          <p className="text-sm text-foreground italic">"{business.user_review}"</p>
+                        </div>
+                      )}
+
+                      {/* Types/Categories */}
+                      {business.types && business.types.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {business.types.slice(0, 5).map((type, idx) => (
+                            <span 
+                              key={idx} 
+                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium"
+                            >
+                              {type}
+                            </span>
+                          ))}
+                          {business.types.length > 5 && (
+                            <span className="px-2 py-1 text-xs text-muted-foreground">
+                              +{business.types.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Contact Info */}
+                      <div className="flex flex-wrap gap-4 pt-2 border-t border-border">
+                        {business.phone && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Phone:</span>
+                            <a 
+                              href={`tel:${business.phone}`}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              {business.phone}
+                            </a>
+                          </div>
+                        )}
+                        {business.website && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Website:</span>
+                            <a 
+                              href={business.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline truncate max-w-xs"
+                            >
+                              {business.website}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </>
       )}
 
-      {!results && (
+      {isSearching && (
+        <Card className="border border-border">
+          <CardContent className="py-16 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Searching for businesses...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {results.length === 0 && !isSearching && (
         <Card className="border border-border">
           <CardContent className="py-16 text-center">
             <MapPin className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
